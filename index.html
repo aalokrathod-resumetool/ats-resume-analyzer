@@ -1,0 +1,215 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS Resume Analyzer</title>
+    <style>
+        :root {
+            --primary-color: #2C3E50;
+            --secondary-color: #3498DB;
+            --success-color: #27AE60;
+            --warning-color: #F1C40F;
+            --danger-color: #E74C3C;
+            --light-gray: #ECF0F1;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f6fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .upload-section {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .upload-box {
+            flex: 1;
+            padding: 20px;
+            border: 2px dashed var(--light-gray);
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .upload-box.active {
+            border-color: var(--secondary-color);
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+        .score-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--light-gray);
+            border-radius: 5px;
+        }
+
+        .recommendations {
+            margin-bottom: 30px;
+        }
+
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980B9;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: var(--light-gray);
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            background-color: var(--success-color);
+            width: 0%;
+            transition: width 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ATS Resume Analyzer</h1>
+        
+        <div class="upload-section">
+            <div class="upload-box" id="resumeUpload">
+                <h3>Upload Resume</h3>
+                <p>Drag & drop your resume or click to browse</p>
+                <input type="file" id="resumeFile" accept=".pdf,.docx" hidden>
+                <button onclick="document.getElementById('resumeFile').click()">Browse Files</button>
+            </div>
+            
+            <div class="upload-box" id="jobDescriptionUpload">
+                <h3>Job Description</h3>
+                <textarea id="jobDescription" rows="5" placeholder="Paste job description here..."></textarea>
+            </div>
+        </div>
+
+        <button id="analyzeBtn" onclick="analyzeResume()">Analyze Resume</button>
+
+        <div class="score-section" id="scoreSection" style="display: none;">
+            <h2>ATS Score</h2>
+            <div class="progress-bar">
+                <div class="progress" id="scoreProgress"></div>
+            </div>
+            <p id="scoreText">Score: 0%</p>
+        </div>
+
+        <div class="recommendations" id="recommendationsSection" style="display: none;">
+            <h2>Recommendations</h2>
+            <div id="recommendationsList"></div>
+        </div>
+    </div>
+
+    <script>
+        // File handling and drag & drop functionality
+        const resumeUpload = document.getElementById('resumeUpload');
+        const resumeFile = document.getElementById('resumeFile');
+
+        resumeUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            resumeUpload.classList.add('active');
+        });
+
+        resumeUpload.addEventListener('dragleave', () => {
+            resumeUpload.classList.remove('active');
+        });
+
+        resumeUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            resumeUpload.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            if (file && (file.type === 'application/pdf' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
+                handleFile(file);
+            } else {
+                alert('Please upload a PDF or DOCX file');
+            }
+        });
+
+        resumeFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        function handleFile(file) {
+            // We'll implement file processing here in the next step
+            console.log('File received:', file.name);
+        }
+
+        async function analyzeResume() {
+            // Show loading state
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('analyzeBtn').textContent = 'Analyzing...';
+
+            try {
+                // Simulate analysis (we'll implement actual analysis later)
+                await simulateAnalysis();
+
+                // Show results
+                document.getElementById('scoreSection').style.display = 'block';
+                document.getElementById('recommendationsSection').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Analysis failed:', error);
+                alert('Analysis failed. Please try again.');
+            }
+
+            // Reset button
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
+        }
+
+        async function simulateAnalysis() {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    // Simulate a score
+                    const score = Math.floor(Math.random() * 100);
+                    document.getElementById('scoreProgress').style.width = `${score}%`;
+                    document.getElementById('scoreText').textContent = `Score: ${score}%`;
+
+                    // Simulate recommendations
+                    const recommendations = [
+                        'Add more specific technical skills',
+                        'Quantify your achievements',
+                        'Include relevant keywords from the job description'
+                    ];
+
+                    const recommendationsList = document.getElementById('recommendationsList');
+                    recommendationsList.innerHTML = recommendations
+                        .map(rec => `<p>• ${rec}</p>`)
+                        .join('');
+
+                    resolve();
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
