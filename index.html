@@ -1,186 +1,15 @@
-// Set PDF.js workerSrc
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-// File parsing handler
-async function handleFile(file) {
-    try {
-        document.getElementById('analyzeBtn').textContent = 'Processing File...';
-        document.getElementById('analyzeBtn').disabled = true;
-
-        let textContent = '';
-        
-        if (file.type === 'application/pdf') {
-            textContent = await parsePDF(file);
-        } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-            textContent = await parseDOCX(file);
-        }
-
-        // Store the parsed content
-        window.parsedResumeText = textContent;
-        
-        // Update UI to show success
-        document.getElementById('resumeUpload').innerHTML += `
-            <div class="file-info">
-                <p class="success">✓ ${file.name} successfully processed</p>
-                <p class="word-count">Word count: ${textContent.split(/\s+/).length}</p>
-            </div>`;
-
-        document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
-        document.getElementById('analyzeBtn').disabled = false;
-
-    } catch (error) {
-        console.error('Error processing file:', error);
-        document.getElementById('resumeUpload').innerHTML += `
-            <p class="error">Error processing file. Please try again.</p>`;
-        
-        document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
-        document.getElementById('analyzeBtn').disabled = false;
-    }
-}
-
-// PDF Parser
-async function parsePDF(file) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let textContent = '';
-
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const content = await page.getTextContent();
-                const text = content.items.map(item => item.str).join(' ');
-                textContent += text + '\n';
-            }
-
-            resolve(textContent.trim());
-        } catch (error) {
-            reject(error);
-        }
-    });
-}
-
-// DOCX Parser
-async function parseDOCX(file) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const arrayBuffer = await file.arrayBuffer();
-            const result = await mammoth.extractRawText({ arrayBuffer });
-            resolve(result.value.trim());
-        } catch (error) {
-            reject(error);
-        }
-    });
-}
-
-// Add this new function to analyze the content
-async function analyzeContent() {
-    const resumeText = window.parsedResumeText;
-    const jobDescription = document.getElementById('jobDescription').value.trim();
-
-    if (!resumeText || !jobDescription) {
-        alert('Please upload a resume and paste the job description.');
-        return;
-    }
-
-    // Extract keywords from job description
-    const keywords = extractKeywords(jobDescription);
-    
-    // Calculate matching score
-    const score = calculateMatchingScore(resumeText, keywords);
-    
-    // Generate recommendations
-    const recommendations = generateRecommendations(resumeText, jobDescription, keywords);
-
-    // Update UI with results
-    updateResults(score, recommendations);
-}
-
-// Keyword extraction function
-function extractKeywords(text) {
-    // Remove common words and get unique words
-    const commonWords = new Set(['and', 'or', 'the', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'of', 'with', 'by']);
-    const words = text.toLowerCase()
-        .replace(/[^\w\s]/g, '')
-        .split(/\s+/)
-        .filter(word => !commonWords.has(word));
-    
-    // Count word frequencies
-    const wordCount = {};
-    words.forEach(word => {
-        wordCount[word] = (wordCount[word] || 0) + 1;
-    });
-
-    // Sort by frequency and return top keywords
-    return Object.entries(wordCount)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 20)
-        .map(([word]) => word);
-}
-
-// Score calculation function
-function calculateMatchingScore(resumeText, keywords) {
-    const resumeWords = resumeText.toLowerCase().split(/\s+/);
-    let matches = 0;
-
-    keywords.forEach(keyword => {
-        if (resumeWords.includes(keyword)) {
-            matches++;
-        }
-    });
-
-    return Math.round((matches / keywords.length) * 100);
-}
-
-// Recommendation generation function
-function generateRecommendations(resumeText, jobDescription, keywords) {
-    const recommendations = [];
-    const resumeWords = resumeText.toLowerCase().split(/\s+/);
-    
-    // Check for missing keywords
-    const missingKeywords = keywords.filter(keyword => !resumeWords.includes(keyword));
-    
-    if (missingKeywords.length > 0) {
-        recommendations.push(`Consider adding these keywords: ${missingKeywords.slice(0, 5).join(', ')}`);
-    }
-
-    // Check resume length
-    if (resumeWords.length < 200) {
-        recommendations.push('Your resume seems too short. Consider adding more details about your experience.');
-    } else if (resumeWords.length > 1000) {
-        recommendations.push('Your resume might be too long. Consider making it more concise.');
-    }
-
-    // Add generic but helpful recommendations
-    recommendations.push('Quantify your achievements with specific numbers and metrics');
-    recommendations.push('Ensure your resume is properly formatted for ATS systems');
-
-    return recommendations;
-}
-
-// Update UI with results
-function updateResults(score, recommendations) {
-    // Update score
-    document.getElementById('scoreProgress').style.width = `${score}%`;
-    document.getElementById('scoreText').textContent = `Score: ${score}%`;
-    
-    // Update recommendations
-    const recommendationsList = document.getElementById('recommendationsList');
-    recommendationsList.innerHTML = recommendations
-        .map(rec => `<p>• ${rec}</p>`)
-        .join('');
-
-    // Show results sections
-    document.getElementById('scoreSection').style.display = 'block';
-    document.getElementById('recommendationsSection').style.display = 'block';
-}
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' cdnjs.cloudflare.com 'unsafe-inline' 'unsafe-eval';">
     <title>ATS Resume Analyzer</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    
     <style>
         :root {
             --primary-color: #2C3E50;
@@ -215,7 +44,7 @@ function updateResults(score, recommendations) {
 
         .upload-box {
             flex: 1;
-            min-height: 300px; /* Increased height */
+            min-height: 300px;
             padding: 30px;
             border: 2px dashed var(--light-gray);
             border-radius: 10px;
@@ -251,7 +80,7 @@ function updateResults(score, recommendations) {
 
         #jobDescription {
             width: 90%;
-            height: 200px; /* Increased height */
+            height: 200px;
             padding: 15px;
             border: 1px solid var(--light-gray);
             border-radius: 5px;
@@ -319,7 +148,6 @@ function updateResults(score, recommendations) {
             margin-bottom: 20px;
         }
 
-        /* File input button styling */
         .upload-btn {
             display: inline-block;
             padding: 12px 25px;
@@ -335,12 +163,44 @@ function updateResults(score, recommendations) {
             background-color: #2980B9;
             transform: translateY(-1px);
         }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+
+        .success {
+            color: var(--success-color);
+            margin: 5px 0;
+        }
+
+        .error {
+            color: var(--danger-color);
+            margin: 5px 0;
+        }
+
+        .word-count {
+            color: #666;
+            font-size: 0.9em;
+            margin: 5px 0;
+        }
+
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
-    <!-- Add these lines before </head> -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
-<body>
+
+    <body>
     <div class="container">
         <h1>ATS Resume Analyzer</h1>
         
@@ -382,7 +242,208 @@ function updateResults(score, recommendations) {
     </div>
 
     <script>
-        // Previous JavaScript code remains the same
+        // Set PDF.js workerSrc
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // File parsing handler
+        async function handleFile(file) {
+            try {
+                document.getElementById('analyzeBtn').textContent = 'Processing File...';
+                document.getElementById('analyzeBtn').disabled = true;
+
+                let textContent = '';
+                
+                if (file.type === 'application/pdf') {
+                    textContent = await parsePDF(file);
+                } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    textContent = await parseDOCX(file);
+                }
+
+                // Store the parsed content
+                window.parsedResumeText = textContent;
+                
+                // Update UI to show success
+                const uploadBox = document.getElementById('resumeUpload');
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'file-info';
+                fileInfo.innerHTML = `
+                    <p class="success">✓ ${file.name} successfully processed</p>
+                    <p class="word-count">Word count: ${textContent.split(/\s+/).length}</p>
+                `;
+                
+                // Remove any previous file info
+                const existingFileInfo = uploadBox.querySelector('.file-info');
+                if (existingFileInfo) {
+                    existingFileInfo.remove();
+                }
+                
+                uploadBox.appendChild(fileInfo);
+
+                document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
+                document.getElementById('analyzeBtn').disabled = false;
+
+            } catch (error) {
+                console.error('Error processing file:', error);
+                const uploadBox = document.getElementById('resumeUpload');
+                const errorInfo = document.createElement('p');
+                errorInfo.className = 'error';
+                errorInfo.textContent = 'Error processing file. Please try again.';
+                
+                const existingError = uploadBox.querySelector('.error');
+                if (existingError) {
+                    existingError.remove();
+                }
+                
+                uploadBox.appendChild(errorInfo);
+                
+                document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        }
+
+        // PDF Parser
+        async function parsePDF(file) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let textContent = '';
+
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        const text = content.items.map(item => item.str).join(' ');
+                        textContent += text + '\n';
+                    }
+
+                    resolve(textContent.trim());
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        // DOCX Parser
+        async function parseDOCX(file) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const result = await mammoth.extractRawText({ arrayBuffer });
+                    resolve(result.value.trim());
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        // Keyword extraction function
+        function extractKeywords(text) {
+            const commonWords = new Set(['and', 'or', 'the', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'of', 'with', 'by']);
+            const words = text.toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter(word => !commonWords.has(word));
+            
+            const wordCount = {};
+            words.forEach(word => {
+                wordCount[word] = (wordCount[word] || 0) + 1;
+            });
+
+            return Object.entries(wordCount)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 20)
+                .map(([word]) => word);
+        }
+
+        // Score calculation function
+        function calculateMatchingScore(resumeText, keywords) {
+            const resumeWords = resumeText.toLowerCase().split(/\s+/);
+            let matches = 0;
+
+            keywords.forEach(keyword => {
+                if (resumeWords.includes(keyword)) {
+                    matches++;
+                }
+            });
+
+            return Math.round((matches / keywords.length) * 100);
+        }
+
+        // Recommendation generation function
+        function generateRecommendations(resumeText, jobDescription, keywords) {
+            const recommendations = [];
+            const resumeWords = resumeText.toLowerCase().split(/\s+/);
+            
+            // Check for missing keywords
+            const missingKeywords = keywords.filter(keyword => !resumeWords.includes(keyword));
+            
+            if (missingKeywords.length > 0) {
+                recommendations.push(`Consider adding these keywords: ${missingKeywords.slice(0, 5).join(', ')}`);
+            }
+
+            // Check resume length
+            if (resumeWords.length < 200) {
+                recommendations.push('Your resume seems too short. Consider adding more details about your experience.');
+            } else if (resumeWords.length > 1000) {
+                recommendations.push('Your resume might be too long. Consider making it more concise.');
+            }
+
+            // Add generic but helpful recommendations
+            recommendations.push('Quantify your achievements with specific numbers and metrics');
+            recommendations.push('Ensure your resume is properly formatted for ATS systems');
+
+            return recommendations;
+        }
+
+        // Content analysis function
+        async function analyzeContent() {
+            const resumeText = window.parsedResumeText;
+            const jobDescription = document.getElementById('jobDescription').value.trim();
+
+            if (!resumeText || !jobDescription) {
+                alert('Please upload a resume and paste the job description.');
+                return;
+            }
+
+            // Extract keywords from job description
+            const keywords = extractKeywords(jobDescription);
+            
+            // Calculate matching score
+            const score = calculateMatchingScore(resumeText, keywords);
+            
+            // Generate recommendations
+            const recommendations = generateRecommendations(resumeText, jobDescription, keywords);
+
+            // Update UI with results
+            document.getElementById('scoreProgress').style.width = `${score}%`;
+            document.getElementById('scoreText').textContent = `Score: ${score}%`;
+            
+            const recommendationsList = document.getElementById('recommendationsList');
+            recommendationsList.innerHTML = recommendations
+                .map(rec => `<p>• ${rec}</p>`)
+                .join('');
+
+            document.getElementById('scoreSection').style.display = 'block';
+            document.getElementById('recommendationsSection').style.display = 'block';
+        }
+
+        // Main analyze function
+        async function analyzeResume() {
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('analyzeBtn').textContent = 'Analyzing...';
+
+            try {
+                await analyzeContent();
+            } catch (error) {
+                console.error('Analysis failed:', error);
+                alert('Analysis failed. Please try again.');
+            }
+
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
+        }
+
+        // Event Listeners
         const resumeUpload = document.getElementById('resumeUpload');
         const resumeFile = document.getElementById('resumeFile');
 
@@ -412,51 +473,6 @@ function updateResults(score, recommendations) {
                 handleFile(file);
             }
         });
-
-        function handleFile(file) {
-            console.log('File received:', file.name);
-        }
-
-        async function analyzeResume() {
-            document.getElementById('analyzeBtn').disabled = true;
-            document.getElementById('analyzeBtn').textContent = 'Analyzing...';
-
-            try {
-                await simulateAnalysis();
-                document.getElementById('scoreSection').style.display = 'block';
-                document.getElementById('recommendationsSection').style.display = 'block';
-                
-            } catch (error) {
-                console.error('Analysis failed:', error);
-                alert('Analysis failed. Please try again.');
-            }
-
-            document.getElementById('analyzeBtn').disabled = false;
-            document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
-        }
-
-        async function simulateAnalysis() {
-            return new Promise(resolve => {
-                setTimeout(() => {
-                    const score = Math.floor(Math.random() * 100);
-                    document.getElementById('scoreProgress').style.width = `${score}%`;
-                    document.getElementById('scoreText').textContent = `Score: ${score}%`;
-
-                    const recommendations = [
-                        'Add more specific technical skills',
-                        'Quantify your achievements',
-                        'Include relevant keywords from the job description'
-                    ];
-
-                    const recommendationsList = document.getElementById('recommendationsList');
-                    recommendationsList.innerHTML = recommendations
-                        .map(rec => `<p>• ${rec}</p>`)
-                        .join('');
-
-                    resolve();
-                }, 2000);
-            });
-        }
     </script>
 </body>
 </html>
