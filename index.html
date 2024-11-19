@@ -1,3 +1,179 @@
+// Set PDF.js workerSrc
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// File parsing handler
+async function handleFile(file) {
+    try {
+        document.getElementById('analyzeBtn').textContent = 'Processing File...';
+        document.getElementById('analyzeBtn').disabled = true;
+
+        let textContent = '';
+        
+        if (file.type === 'application/pdf') {
+            textContent = await parsePDF(file);
+        } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            textContent = await parseDOCX(file);
+        }
+
+        // Store the parsed content
+        window.parsedResumeText = textContent;
+        
+        // Update UI to show success
+        document.getElementById('resumeUpload').innerHTML += `
+            <div class="file-info">
+                <p class="success">✓ ${file.name} successfully processed</p>
+                <p class="word-count">Word count: ${textContent.split(/\s+/).length}</p>
+            </div>`;
+
+        document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
+        document.getElementById('analyzeBtn').disabled = false;
+
+    } catch (error) {
+        console.error('Error processing file:', error);
+        document.getElementById('resumeUpload').innerHTML += `
+            <p class="error">Error processing file. Please try again.</p>`;
+        
+        document.getElementById('analyzeBtn').textContent = 'Analyze Resume';
+        document.getElementById('analyzeBtn').disabled = false;
+    }
+}
+
+// PDF Parser
+async function parsePDF(file) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let textContent = '';
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                const text = content.items.map(item => item.str).join(' ');
+                textContent += text + '\n';
+            }
+
+            resolve(textContent.trim());
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// DOCX Parser
+async function parseDOCX(file) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            resolve(result.value.trim());
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Add this new function to analyze the content
+async function analyzeContent() {
+    const resumeText = window.parsedResumeText;
+    const jobDescription = document.getElementById('jobDescription').value.trim();
+
+    if (!resumeText || !jobDescription) {
+        alert('Please upload a resume and paste the job description.');
+        return;
+    }
+
+    // Extract keywords from job description
+    const keywords = extractKeywords(jobDescription);
+    
+    // Calculate matching score
+    const score = calculateMatchingScore(resumeText, keywords);
+    
+    // Generate recommendations
+    const recommendations = generateRecommendations(resumeText, jobDescription, keywords);
+
+    // Update UI with results
+    updateResults(score, recommendations);
+}
+
+// Keyword extraction function
+function extractKeywords(text) {
+    // Remove common words and get unique words
+    const commonWords = new Set(['and', 'or', 'the', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'of', 'with', 'by']);
+    const words = text.toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter(word => !commonWords.has(word));
+    
+    // Count word frequencies
+    const wordCount = {};
+    words.forEach(word => {
+        wordCount[word] = (wordCount[word] || 0) + 1;
+    });
+
+    // Sort by frequency and return top keywords
+    return Object.entries(wordCount)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 20)
+        .map(([word]) => word);
+}
+
+// Score calculation function
+function calculateMatchingScore(resumeText, keywords) {
+    const resumeWords = resumeText.toLowerCase().split(/\s+/);
+    let matches = 0;
+
+    keywords.forEach(keyword => {
+        if (resumeWords.includes(keyword)) {
+            matches++;
+        }
+    });
+
+    return Math.round((matches / keywords.length) * 100);
+}
+
+// Recommendation generation function
+function generateRecommendations(resumeText, jobDescription, keywords) {
+    const recommendations = [];
+    const resumeWords = resumeText.toLowerCase().split(/\s+/);
+    
+    // Check for missing keywords
+    const missingKeywords = keywords.filter(keyword => !resumeWords.includes(keyword));
+    
+    if (missingKeywords.length > 0) {
+        recommendations.push(`Consider adding these keywords: ${missingKeywords.slice(0, 5).join(', ')}`);
+    }
+
+    // Check resume length
+    if (resumeWords.length < 200) {
+        recommendations.push('Your resume seems too short. Consider adding more details about your experience.');
+    } else if (resumeWords.length > 1000) {
+        recommendations.push('Your resume might be too long. Consider making it more concise.');
+    }
+
+    // Add generic but helpful recommendations
+    recommendations.push('Quantify your achievements with specific numbers and metrics');
+    recommendations.push('Ensure your resume is properly formatted for ATS systems');
+
+    return recommendations;
+}
+
+// Update UI with results
+function updateResults(score, recommendations) {
+    // Update score
+    document.getElementById('scoreProgress').style.width = `${score}%`;
+    document.getElementById('scoreText').textContent = `Score: ${score}%`;
+    
+    // Update recommendations
+    const recommendationsList = document.getElementById('recommendationsList');
+    recommendationsList.innerHTML = recommendations
+        .map(rec => `<p>• ${rec}</p>`)
+        .join('');
+
+    // Show results sections
+    document.getElementById('scoreSection').style.display = 'block';
+    document.getElementById('recommendationsSection').style.display = 'block';
+}
 <!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
@@ -160,6 +336,9 @@
             transform: translateY(-1px);
         }
     </style>
+    <!-- Add these lines before </head> -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
     <div class="container">
